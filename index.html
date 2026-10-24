@@ -4,32 +4,38 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f6f7fb">
-  <meta name="description" content="Kolik vody se vejde dovnitř? Hravé procvičování převodů objemu pro 2. stupeň ZŠ. Bez přihlášení a zdarma.">
-  <title>Převody objemu · Malá laboratoř</title>
+  <meta name="description" content="Hravé převody jednotek: objem, délka, obsah, hmotnost, hustota, čas, rychlost, tlak, elektrický proud, napětí, odpor, energie a výkon. Vyber si veličiny a trénuj vlastním tempem.">
+  <title>Převody jednotek · Silozpyt</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./themes.css">
   <script src="./volume.js" defer></script>
+  <script src="./quantities.js" defer></script>
+  <script src="./instruments.js" defer></script>
   <script src="./app.js" defer></script>
 </head>
 <body>
   <header class="topbar wrap">
-    <a class="brand" href="./" aria-label="Malá laboratoř – úvod"><span class="brand-icon" aria-hidden="true">◒</span> malá laboratoř<span class="brand-dot">.</span></a>
+    <a class="brand" href="./" aria-label="Silozpyt – úvod"><img class="brand-symbol" src="./logo.svg" width="37" height="37" alt="">Silozpyt<span class="brand-dot">.</span></a>
     <span class="subject">FYZIKA</span>
   </header>
   <main class="wrap">
     <div class="intro">
-      <div><p class="eyebrow">MALÝ EXPERIMENT, VELKÝ OBJEV</p><h1>Převody objemu<span>.</span></h1><p class="lead">Jiné jednotky. Stejné množství vody. Najdeš správnou nádobu?</p></div>
+      <div><p class="eyebrow">MALÝ EXPERIMENT, VELKÝ OBJEV</p><h1>Převody jednotek<span>.</span></h1><p class="lead">Od milimetrů po kilometry. Vyber si veličiny a pusť se do převodů.</p></div>
       <button id="hint-toggle" class="button secondary" aria-expanded="false" aria-controls="hint"> <span aria-hidden="true">✦</span> Tahák s jednotkami</button>
     </div>
     <section id="hint" class="hint" hidden aria-label="Přehled převodů">
-      <strong>Malý tahák</strong><div class="relations"><span>1 l = 1 dm³</span><span>1 ml = 1 cm³</span><span>1 m³ = 1 000 l</span><span>1 cm³ = 1 000 mm³</span><span>1 l = 10 dl = 100 cl = 1 000 ml</span><span>1 hl = 100 l</span><span>1 km³ = 1 000 000 000 m³</span></div>
-      <p>Při převodu na menší jednotku číslo roste, na větší klesá. Množství vody se nemění.</p>
+      <strong>Malý tahák</strong><div id="hint-relations"></div>
+      <p>Při převodu měníš jednotku, samotná veličina zůstává stejná.</p>
     </section>
     <section id="welcome" class="panel welcome" aria-labelledby="welcome-title">
       <p class="eyebrow">JAK DNES BUDEŠ TRÉNOVAT?</p>
-      <h2 id="welcome-title" tabindex="-1">Vyber si délku hry a obtížnost</h2>
-      <p>Krátká série, vlastní cíl, nebo procvičování bez konce. Obtížnost zvol před začátkem; platí pro celou hru.</p>
+      <h2 id="welcome-title" tabindex="-1">Co dnes procvičíš?</h2>
+      <p>Označ jednu nebo více veličin. Potom si zvol délku hry a obtížnost.</p>
       <form id="start-form">
+        <fieldset class="quantity-picker"><legend>Veličiny <span>můžeš vybrat více možností</span></legend><div id="quantity-choices" class="quantity-choices"></div></fieldset>
+        <p id="quantity-error" class="form-error" role="alert"></p>
+        <p class="setup-note">Při výběru více veličin se příklady střídají. Výběr i obtížnost platí pro celou hru.</p>
         <fieldset class="mode-picker"><legend class="sr-only">Herní mód</legend>
           <label class="mode-card"><input type="radio" name="mode" value="ten" checked><span><strong>10 příkladů</strong><small>Krátký trénink s výsledkem na konci.</small></span></label>
           <label class="mode-card"><input type="radio" name="mode" value="custom"><span><strong>Vlastní počet</strong><small>Ty rozhodneš, kolik příkladů zvládneš.</small></span></label>
@@ -37,7 +43,7 @@
         </fieldset>
         <div id="custom-count-field" hidden><label for="custom-count">Počet příkladů</label> <input id="custom-count" type="number" min="1" step="1" value="20" required disabled></div>
       <fieldset class="difficulty"><legend>Obtížnost</legend><div class="segments"><label><input type="radio" name="level" value="easy" checked><span>Rozjezd</span></label><label><input type="radio" name="level" value="medium"><span>Výzva</span></label><label><input type="radio" name="level" value="hard"><span>Expert</span></label><label><input type="radio" name="level" value="sigma"><span>Sigma</span></label></div></fieldset>
-        <p id="setup-level-description" class="level-description">Rozjezd · Dělení na 2, 5 nebo 10. Odpovědi ve stejné jednotce.</p>
+        <p id="setup-level-description" class="level-description">Rozjezd · Jednodušší hodnoty, odpovědi ve stejné jednotce.</p>
         <button class="button primary" type="submit">Začít hrát <span aria-hidden="true">→</span></button>
       </form>
     </section>
@@ -64,6 +70,16 @@
     <div class="game-layout">
       <section class="measure panel" aria-labelledby="measure-title">
         <div class="section-heading"><span class="step">01</span><h2 id="measure-title">Přečti hladinu</h2><span class="live-dot" aria-hidden="true"></span></div>
+        <div id="quantity-reading" class="quantity-reading" hidden><span id="quantity-art" class="quantity-art" aria-hidden="true"></span><span id="quantity-name" class="eyebrow"></span><strong id="source-value"></strong><p>Tuto hodnotu převeď na jinou jednotku.</p></div>
+        <div id="instrument-reading" hidden>
+          <button id="instrument-toggle" class="cylinder-control" type="button" aria-label="Zvětšit detail přístroje" aria-pressed="false" aria-describedby="instrument-zoom-help">
+            <span id="instrument-zoom-badge" class="zoom-badge" hidden>Detail přístroje</span>
+            <span id="instrument" class="instrument" style="display:block"></span>
+          </button>
+          <p id="instrument-zoom-help" class="measure-note zoom-help">Pro detail najeď myší nebo ťukni na přístroj.</p>
+          <p id="instrument-note" class="measure-note"></p>
+        </div>
+        <div id="volume-reading">
         <button id="cylinder-toggle" class="cylinder-control" type="button" aria-label="Zvětšit hladinu a stupnici" aria-pressed="false" aria-describedby="zoom-help">
           <span id="zoom-badge" class="zoom-badge" hidden></span>
           <span id="cylinder" class="cylinder"></span>
@@ -72,6 +88,7 @@
         <div id="reading" class="reading"><span>VE VÁLCI JE</span><strong id="amount"></strong></div>
         <p id="tick-note" class="measure-note">Každý dílek = <span id="tick-size"></span></p>
         <p id="expert-note" class="measure-note" hidden>Objem odečti ze stupnice.<br>Hladinu označuje tyrkysová značka vpravo.</p>
+        </div>
       </section>
       <section class="selection" aria-labelledby="selection-title">
         <div class="section-heading"><span class="step">02</span><h2 id="selection-title">Vyber stejný objem</h2><span id="round-number" class="round-number"></span></div>
@@ -79,7 +96,7 @@
         <div id="options" class="options"></div>
         <form id="numeric-form" class="panel numeric-form" hidden novalidate>
           <span class="sigma-symbol" aria-hidden="true">Σ</span>
-          <label for="numeric-answer">Jaký objem ukazuje odměrka?</label>
+          <label id="numeric-label" for="numeric-answer">Jaký objem ukazuje odměrka?</label>
           <div class="numeric-row"><input id="numeric-answer" type="text" inputmode="decimal" autocomplete="off" maxlength="120" aria-describedby="numeric-help numeric-error target-unit"><strong id="target-unit"></strong></div>
           <p id="numeric-help">Zapiš pouze číslo. Můžeš použít desetinnou čárku i tečku. Nezaokrouhluj.</p>
           <p id="numeric-error" role="alert"></p>

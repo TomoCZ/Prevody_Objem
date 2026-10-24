@@ -2,9 +2,40 @@
 (() => {
   'use strict';
   const V = window.Volume;
+  const Q = window.Quantities;
   const $ = id => document.getElementById(id);
   let level = 'easy', task, answered = false, correct = 0, attempts = 0, streak = 0, round = 0, limit = 10, bestStreak = 0;
   let mistakes = [], retryQueue = null;
+  let selectedQuantities = ['volume'], nextQuantity = Q.createPicker(selectedQuantities);
+  function quantityIcon(quantity) {
+    const drawings = {
+      area: '<rect x="10" y="10" width="44" height="44" rx="3"/><path d="M10 25h44M10 40h44M25 10v44M40 10v44"/>',
+      current: '<circle cx="32" cy="32" r="23"/><path d="M21 43l11-24 11 24m-18-8h14M3 32h6m46 0h6"/>',
+      voltage: '<circle cx="32" cy="32" r="23"/><path d="M21 21l11 24 11-24M3 32h6m46 0h6"/>',
+      resistance: '<path d="M4 32h10m36 0h10"/><rect x="14" y="21" width="36" height="22" rx="2"/><path d="M23 21v22m18-22v22"/>',
+      energy: '<path d="M37 6L14 36h16l-3 22 23-31H34Z"/>',
+      power: '<circle cx="32" cy="32" r="25"/><path d="M15 23l7 20 10-16 10 16 7-20"/>',
+      volume: '<path d="M32 8C27 18 16 30 16 41a16 16 0 0032 0C48 30 37 18 32 8Z"/><path d="M23 40a9 9 0 009 9"/>',
+      length: '<rect x="8" y="20" width="48" height="25" rx="4"/><path d="M16 20v12m8-12v7m8-7v12m8-12v7m8-7v12"/>',
+      mass: '<path d="M32 10v43M12 53h40M10 20h44M16 20L7 37h18ZM48 20l-9 17h18Z"/><circle cx="32" cy="15" r="4"/>',
+      density: '<path d="M12 23l20-12 20 12v25L32 59 12 48Zm0 0l20 12 20-12M32 35v24"/><circle cx="22" cy="39" r="2"/><circle cx="22" cy="47" r="2"/><circle cx="41" cy="39" r="2"/><circle cx="45" cy="47" r="2"/>',
+      time: '<circle cx="32" cy="34" r="23"/><path d="M32 19v16l11 6M26 5h12M32 5v6M48 14l4-4"/>',
+      speed: '<path d="M9 48a26 26 0 1146 0Z"/><path d="M32 39l14-16M12 35h6m28 0h6M32 14v6M17 20l4 5"/><circle cx="32" cy="39" r="4"/>',
+      pressure: '<circle cx="32" cy="27" r="20"/><path d="M25 46v11h14V46M32 27l9-10M18 27h4m20 0h4M32 12v5M10 57h44"/>'
+    };
+    return `<svg class="quantity-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${drawings[quantity]}</svg>`;
+  }
+  const quantityOrder = ['length', 'area', 'volume', 'mass', 'density', 'time', 'speed', 'pressure', 'voltage', 'current', 'resistance', 'energy', 'power'];
+  $('quantity-choices').innerHTML = quantityOrder.map(key => {
+    const config = Q.QUANTITIES[key];
+    return `<label class="quantity-choice" data-quantity="${key}"><input type="checkbox" name="quantity" value="${key}" ${key === 'volume' ? 'checked' : ''}><span class="quantity-choice-content">${quantityIcon(key)}<strong>${config.name}</strong><small>${Object.keys(config.units).join(' · ')}</small></span></label>`;
+  }).join('');
+  function updateHints(keys) {
+    $('hint-relations').innerHTML = keys.map(key => `<div class="hint-group"><strong>${Q.QUANTITIES[key].name}</strong><div class="relations">${Q.QUANTITIES[key].hints.map(hint => `<span>${hint}</span>`).join('')}</div></div>`).join('');
+  }
+  const checkedQuantities = () => [...document.querySelectorAll('input[name="quantity"]:checked')].map(input => input.value);
+  $('quantity-choices').addEventListener('change', () => { $('quantity-error').textContent = ''; updateHints(checkedQuantities()); });
+  updateHints(selectedQuantities);
   const shapeNames = { bottle: 'Lahev', aquarium: 'Akvárium', pool: 'Bazén', barrel: 'Sud', flask: 'Baňka', watering: 'Konev' };
   function vessel(shape, index) {
     const [edge, light, dark] = [['#b5acef', '#ded9fc', '#9385d9'], ['#8accc0', '#d0eee7', '#57ad9c'], ['#8ebbe9', '#d4e6fa', '#6195d1'], ['#efbc82', '#fae5c9', '#d49c5c']][index];
@@ -64,34 +95,70 @@
   $('cylinder-toggle').addEventListener('blur', () => setCylinderZoom(false));
   document.addEventListener('pointerdown', event => { if (!$('cylinder-toggle').contains(event.target)) setCylinderZoom(false); });
   document.addEventListener('keydown', event => { if (event.key === 'Escape') setCylinderZoom(false); });
+  function setInstrumentZoom(enabled) {
+    const svg = $('instrument').querySelector('svg');
+    if (!svg) return;
+    svg.setAttribute('viewBox', enabled ? svg.dataset.zoomView : '0 0 320 390');
+    $('instrument-toggle').classList.toggle('zoomed', enabled);
+    $('instrument-toggle').setAttribute('aria-pressed', String(enabled));
+    $('instrument-toggle').setAttribute('aria-label', enabled ? 'Zrušit zvětšení přístroje' : 'Zvětšit detail přístroje');
+    $('instrument-zoom-badge').hidden = !enabled;
+  }
+  $('instrument-toggle').addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') setInstrumentZoom(true); });
+  $('instrument-toggle').addEventListener('pointerleave', event => { if (event.pointerType === 'mouse') setInstrumentZoom(false); });
+  $('instrument-toggle').addEventListener('click', () => setInstrumentZoom($('instrument-toggle').getAttribute('aria-pressed') !== 'true'));
+  $('instrument-toggle').addEventListener('blur', () => setInstrumentZoom(false));
+  document.addEventListener('pointerdown', event => { if (!$('instrument-toggle').contains(event.target)) setInstrumentZoom(false); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') setInstrumentZoom(false); });
   function newTask() {
-    task = retryQueue ? retryQueue[attempts] : V.generateTask(level); answered = false; round = limit === null ? round + 1 : attempts + 1;
+    task = retryQueue ? retryQueue[attempts] : Q.generateTask(nextQuantity(), level); answered = false; round = limit === null ? round + 1 : attempts + 1;
     $('round-number').textContent = 'ÚLOHA ' + String(round).padStart(2, '0') + (limit === null ? '' : ' / ' + limit);
     $('next').disabled = limit !== null;
     $('next').textContent = limit === null ? 'Nová úloha →' : 'Další příklad →';
-    $('level-description').textContent = V.LEVELS[level].description;
-    renderCylinder();
+    $('game').dataset.quantity = task.quantity;
+    const isVolume = task.quantity === 'volume';
+    const measured = !!task.instrument;
+    const quantityName = Q.QUANTITIES[task.quantity].name;
+    $('level-description').textContent = quantityName + ' · ' + Q.LEVELS[level].description;
+    $('volume-reading').hidden = !isVolume;
+    $('quantity-reading').hidden = isVolume || measured;
+    $('instrument-reading').hidden = !measured;
+    $('measure-title').textContent = isVolume ? 'Přečti hladinu' : measured ? 'Odečti přístroj' : 'Přečti zadání';
+    $('source-value').textContent = '';
+    if (isVolume) renderCylinder();
+    else if (measured) {
+      $('instrument').innerHTML = Instruments.render(task);
+      setInstrumentZoom(false);
+      $('instrument-note').textContent = task.instrument.kind === 'multimeter' ? 'Odečti displej i předponu jednotky. Výukový model používá také rozsahy mimo možnosti běžného multimetru.' : task.quantity === 'time' ? 'Na stopkách je uplynulý čas. Čti dny, hodiny, minuty a sekundy.' : task.quantity === 'length' ? 'Měření začíná na nule. Odečti konec barevného úseku.' : 'Odečti hodnotu na stupnici. Ručička ukazuje přesně na rysku.';
+    }
+    else {
+      $('quantity-art').innerHTML = quantityIcon(task.quantity);
+      $('quantity-name').textContent = quantityName;
+      $('source-value').textContent = Q.formatValue(task, task.amount, task.sourceUnit);
+    }
+    updateHints([task.quantity]);
     const sigma = level === 'sigma';
     $('options').hidden = sigma;
     $('numeric-form').hidden = !sigma;
-    $('illustration-note').hidden = sigma;
-    $('selection-title').textContent = sigma ? 'Zapiš převedený objem' : 'Vyber stejný objem';
-    $('selection-note').textContent = sigma ? 'Odečti hladinu a převeď ji na jednotku u políčka.' : 'Jen jedna nádoba pojme přesně tolik vody.';
+    $('illustration-note').hidden = sigma || !isVolume;
+    $('selection-title').textContent = sigma ? 'Zapiš převedenou hodnotu' : isVolume ? 'Vyber stejný objem' : 'Vyber správný převod';
+    $('selection-note').textContent = sigma ? (isVolume ? 'Odečti hladinu a převeď ji na jednotku u políčka.' : measured ? 'Odečti přístroj a převeď hodnotu na jednotku u políčka.' : 'Převeď zadanou hodnotu na jednotku u políčka.') : isVolume ? 'Jen jedna nádoba pojme přesně tolik vody.' : measured ? 'Odečti přístroj. Jen jedna odpověď má stejnou hodnotu.' : 'Jen jedna odpověď odpovídá zadané hodnotě.';
+    $('numeric-label').textContent = isVolume ? 'Jaký objem ukazuje odměrka?' : measured ? 'Jakou hodnotu ukazuje přístroj?' : 'Jaká je převedená hodnota?';
     $('numeric-answer').value = '';
     $('numeric-answer').disabled = false;
     $('numeric-answer').removeAttribute('aria-invalid');
     $('numeric-error').textContent = '';
     $('check-answer').disabled = false;
     $('target-unit').textContent = task.targetUnit;
-    $('numeric-answer').setAttribute('aria-label', 'Objem v jednotce ' + task.targetUnit);
-    $('options').innerHTML = task.options.map((option, index) => `<button class="option color-${index}" data-index="${index}" aria-label="${String.fromCharCode(65 + index)}: ${shapeNames[option.shape]}, ${V.formatVolume(option.volume, option.unit)}"><span class="option-top"><span class="option-letter">${String.fromCharCode(65 + index)}</span><span>${shapeNames[option.shape]}</span><span class="option-result" aria-hidden="true"></span></span>${vessel(option.shape, index)}<strong class="option-value">${V.formatVolume(option.volume, option.unit)}</strong><span class="option-caption">objem nádoby</span></button>`).join('');
+    $('numeric-answer').setAttribute('aria-label', quantityName + ' v jednotce ' + task.targetUnit);
+    $('options').innerHTML = task.options.map((option, index) => `<button class="option color-${index}" data-index="${index}" aria-label="${String.fromCharCode(65 + index)}: ${isVolume ? shapeNames[option.shape] : quantityName}, ${Q.formatValue(task, option.volume, option.unit)}"><span class="option-top"><span class="option-letter">${String.fromCharCode(65 + index)}</span><span>${isVolume ? shapeNames[option.shape] : quantityName}</span><span class="option-result" aria-hidden="true"></span></span>${isVolume ? vessel(option.shape, index) : quantityIcon(task.quantity)}<strong class="option-value">${Q.formatValue(task, option.volume, option.unit)}</strong><span class="option-caption">${isVolume ? 'objem nádoby' : 'převedená hodnota'}</span></button>`).join('');
     $('feedback').className = 'feedback';
-    $('feedback').textContent = sigma ? 'Napiš výsledek a potvrď ho klávesou Enter nebo tlačítkem.' : 'Porovnej objemy a klikni na svou odpověď.';
+    $('feedback').textContent = sigma ? 'Napiš výsledek a potvrď ho klávesou Enter nebo tlačítkem.' : 'Porovnej hodnoty a klikni na svou odpověď.';
   }
   function answer(index, numericResult) {
     if (answered) return;
     answered = true; attempts++;
-    const success = level === 'sigma' ? numericResult : V.isCorrect(task, index);
+    const success = level === 'sigma' ? numericResult : Q.isCorrect(task, index);
     $('numeric-answer').disabled = true; $('check-answer').disabled = true;
     if (success) { correct++; streak++; } else { streak = 0; mistakes.push(task); }
     $('finish-practice').disabled = false;
@@ -108,12 +175,12 @@
       else button.classList.add('muted');
     });
     $('feedback').className = 'feedback ' + (success ? 'success' : 'error');
-    const heading = success ? 'Přesně tak! Převod se povedl.' : level === 'sigma' ? 'Ještě to není ono. Správně je ' + V.formatVolume(task.amount, task.targetUnit) + '.' : 'Ještě to není ono. Správně je ' + String.fromCharCode(65 + rightIndex) + '.';
+    const heading = success ? 'Přesně tak! Převod se povedl.' : level === 'sigma' ? 'Ještě to není ono. Správně je ' + Q.formatValue(task, task.amount, task.targetUnit) + '.' : 'Ještě to není ono. Správně je ' + String.fromCharCode(65 + rightIndex) + '.';
     $('feedback').replaceChildren();
     const symbol = document.createElement('span'); symbol.className = 'feedback-symbol'; symbol.textContent = success ? '✓' : '↔'; symbol.setAttribute('aria-hidden', 'true');
     const message = document.createElement('div');
     const title = document.createElement('strong'); title.textContent = heading;
-    const detail = document.createElement('p'); detail.textContent = V.explanation(task, index);
+    const detail = document.createElement('p'); detail.textContent = Q.explanation(task, index);
     message.append(title, detail); $('feedback').append(symbol, message);
   }
   function focusAnswer() {
@@ -128,7 +195,7 @@
     $('results-encouragement').textContent = correct === attempts ? 'Převody máš v malíku. Co zkusit další výzvu?' : 'Každý další pokus pomáhá. Vrať se k tomu, co ještě potřebuje procvičit.';
     $('result-percent').textContent = percent + ' %';
     $('result-ring').style.setProperty('--result-progress', percent + '%');
-    $('results-level').textContent = V.LEVELS[level].name;
+    $('results-level').textContent = Q.LEVELS[level].name + ' · ' + [...new Set((retryQueue || selectedQuantities).map(item => typeof item === 'string' ? item : item.quantity))].map(key => Q.QUANTITIES[key].name).join(', ');
     $('result-correct').textContent = correct + ' / ' + attempts;
     $('result-wrong').textContent = mistakes.length;
     $('result-streak').textContent = bestStreak;
@@ -140,6 +207,7 @@
   }
   function startSession(queue = null) {
     retryQueue = queue;
+    if (!queue) nextQuantity = Q.createPicker(selectedQuantities);
     mistakes = [];
     if (queue) limit = queue.length;
     correct = 0; attempts = 0; streak = 0; round = 0; bestStreak = 0;
@@ -156,7 +224,7 @@
   $('numeric-form').addEventListener('submit', event => {
     event.preventDefault();
     if (answered || level !== 'sigma') return;
-    const result = V.checkNumericAnswer(task, $('numeric-answer').value);
+    const result = Q.checkNumericAnswer(task, $('numeric-answer').value);
     if (!result.valid) {
       $('numeric-error').textContent = 'Zadej nezáporné číslo bez jednotky, například 0,6.';
       $('numeric-answer').setAttribute('aria-invalid', 'true'); $('numeric-answer').focus(); return;
@@ -174,10 +242,11 @@
     }
     newTask(); focusAnswer();
   });
-  document.querySelectorAll('input[name="level"]').forEach(input => input.addEventListener('change', () => { $('setup-level-description').textContent = V.LEVELS[input.value].description; }));
+  document.querySelectorAll('input[name="level"]').forEach(input => input.addEventListener('change', () => { $('setup-level-description').textContent = Q.LEVELS[input.value].description; }));
   $('hint-toggle').addEventListener('click', () => { const open = $('hint').hidden; $('hint').hidden = !open; $('hint-toggle').setAttribute('aria-expanded', String(open)); });
   function menu() {
     $('game').hidden = true; $('results').hidden = true; $('welcome').hidden = false;
+    updateHints(checkedQuantities());
     $('welcome-title').focus();
   }
   $('back-menu').addEventListener('click', menu);
@@ -190,6 +259,11 @@
   $('custom-count').addEventListener('input', () => $('custom-count').setCustomValidity(''));
   $('start-form').addEventListener('submit', event => {
     event.preventDefault();
+    const chosen = checkedQuantities();
+    if (!chosen.length) {
+      $('quantity-error').textContent = 'Vyber alespoň jednu veličinu.';
+      document.querySelector('input[name="quantity"]').focus(); return;
+    }
     const mode = document.querySelector('input[name="mode"]:checked').value;
     const count = Number($('custom-count').value);
     if (mode === 'custom' && (!Number.isSafeInteger(count) || count < 1)) {
@@ -197,6 +271,7 @@
     }
     limit = mode === 'infinite' ? null : mode === 'ten' ? 10 : count;
     level = document.querySelector('input[name="level"]:checked').value;
+    selectedQuantities = chosen;
     startSession();
   });
 })();
